@@ -36,7 +36,7 @@ you can combine the chars above with field names to into a json format as follow
 * You can set pack/unpack binary values (byte[]) same as python's strcut
 
 ### Example
-```
+```C#
 string jsonFormula = "{'A' : 'I','B' :'b', 'C' : 'c'}";
 var gen = Generator.CreateGeneratorJson(jsonFormula);
 
