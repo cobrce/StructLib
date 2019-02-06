@@ -1,145 +1,139 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
-
 
 namespace StructLib
 {
 	public class Structure
 	{
+		private readonly Type type;
+		public readonly object Instance;
+		private Dictionary<string, Field> fields = new Dictionary<string, Field>();
 
-		#region static
-		static readonly Regex validation = new Regex(@"^((i|I|l|L|h|H|b|c|\?|q|Q|f|d|s)([\d]*))+$");
-		static readonly Regex extraction = new Regex(@"^((?<type>i|I|l|L|h|H|b|c|\?|q|Q|f|d|s)(?<offset>[\d]*))");
-
-		static readonly Dictionary<string, Type> structs = new Dictionary<string, Type>();
-
-		static readonly Dictionary<char, Type> types = new Dictionary<char, Type>()
+		public void Unpack(byte[] data)
 		{
-			['i'] = typeof(int),
-			['I'] = typeof(uint),
-			['l'] = typeof(int),
-			['L'] = typeof(uint),
-			['h'] = typeof(short),
-			['H'] = typeof(ushort),
-			['b'] = typeof(byte),
-			['c'] = typeof(char),
-			['?'] = typeof(bool),
-			['q'] = typeof(Int64),
-			['Q'] = typeof(UInt64),
-			['f'] = typeof(float),
-			['d'] = typeof(double),
-			['s'] = typeof(string)
-		};
-
-		private static AssemblyBuilder _builder;
-		private static AssemblyBuilder Builder { get => _builder ?? (_builder = GenerateBuilder()); }
-
-		private static ModuleBuilder _module;
-		private static ModuleBuilder Module { get => _module ?? (_module = GenerateModuleBuilder()); }
-
-		private static ModuleBuilder GenerateModuleBuilder()
-		{
-			return Builder.DefineDynamicModule("StructsContainer");
+			using (var ms = new MemoryStream(data))
+			using (var br = new BinaryReader(ms))
+				foreach (var field in GetFields())
+				{
+					field.Value = br.ReadValue(field.FieldInfo.FieldType);
+				}
 		}
 
-		private static AssemblyBuilder GenerateBuilder()
+		public void Unpack(object[] values)
 		{
-			var r = new Random();
-			string asmName;
-			do
+			foreach (var tuple in GetFields().Zip(values, (f, v) => new { f, v }))
+				tuple.f.Value = tuple.v;
+		}
+
+		public override bool Equals(object obj)
+		{
+			if (obj is Structure s)
 			{
-				asmName = r.Next().ToString();
-			} while ((from asm in AppDomain.CurrentDomain.GetAssemblies() select asm.GetName().Name).Contains(asmName));
-			return AppDomain.CurrentDomain.DefineDynamicAssembly(new AssemblyName(asmName), AssemblyBuilderAccess.Run);
-		}
+				var remoteFields = s.GetFields().ToArray();
+				var myFields = GetFields().ToArray();
 
-		public static Type GetStruct(string formula)
-		{
-			if (structs.Keys.Contains(formula))
-				return structs[formula];
-			else
-				return CreateStruct(formula);
-		}
-
-		public static object Unpack(string formula, object[] values)
-		{
-			return Unpack(GetStruct(formula), values);
-		}
-
-		private static object Unpack(Type type, object[] values)
-		{
-			var instance = Activator.CreateInstance(type);
-			int counter = 0;
-			foreach (var value in values)
-			{
-				type.GetField(FieldName(counter++)).SetValue(instance, value);
+				if (remoteFields.Length == myFields.Length)
+				{
+					var zipped = myFields.Zip(remoteFields, (m, r) => new { m, r });
+					foreach (var pair in zipped)
+						if (!pair.m.Value.Equals(pair.m.Value))
+							return false;
+					return true;
+				}
 			}
-			return instance;
+			return base.Equals(obj);
 		}
 
-		private static Type CreateStruct(string formula)
+		public override int GetHashCode()
 		{
-			if (!validation.Match(formula).Success)
-				throw new Exception("Invalid formula");
-
-			var typeBuilder = Module.DefineType(formula,
-				TypeAttributes.Public |
-				TypeAttributes.Class |
-				TypeAttributes.ExplicitLayout |
-				TypeAttributes.Sealed |
-				TypeAttributes.BeforeFieldInit,
-				typeof(System.ValueType));
-
-			List<Tuple<Type, int>> extracted = ExtractTypes(formula);
-
-			int counter = 0;
-			foreach (var tuple in extracted)
-			{
-				var field = typeBuilder.DefineField(FieldName(counter++), tuple.Item1, FieldAttributes.Public | FieldAttributes.HasFieldRVA);
-				field.SetOffset(tuple.Item2);
-			}
-			return structs[formula] = typeBuilder.CreateType();
+			return Instance.GetHashCode();
 		}
 
-		private static string FieldName(int counter)
+		internal Structure(Type type, object instance)
 		{
-			return $"Field{counter}";
-		}
+			this.type = type;
+			this.Instance = instance;
 
-		private static List<Tuple<Type, int>> ExtractTypes(string formula)
-		{
-			List<Tuple<Type, int>> extracted = new List<Tuple<Type, int>>();
-
-			int lastOffset = 0;
-			while (formula != "")
+			foreach (var field in type.GetFields())
 			{
-				var match = extraction.Match(formula);
-				Type type = types[match.Groups["type"].Value[0]];
-				int offset = ExtractOffset(match.Groups["offset"].Value, type, ref lastOffset);
-				extracted.Add(new Tuple<Type, int>(type, offset));
-				formula = formula.Substring(match.Length);
-			}
-			return extracted;
-		}
-
-		private static int ExtractOffset(string strOffset, Type currentType, ref int lastOffset)
-		{
-			if (strOffset == "")
-			{
-				int retval = lastOffset;
-				lastOffset += Marshal.SizeOf(currentType);
-				return retval;
-			}
-			else
-			{
-				return int.Parse(strOffset);
+				Length += Marshal.SizeOf(field.FieldType);
+				fields[field.Name] = new Field(field, instance);
 			}
 		}
-		#endregion
+
+		public int Length { get; private set; } = 0;
+
+		public byte[] Pack()
+		{
+			byte[] data = new byte[this.Length];
+			var ptr = Marshal.AllocHGlobal(data.Length);
+			Marshal.StructureToPtr(Instance, ptr, false);
+			Marshal.Copy(ptr, data, 0, data.Length);
+			return data;
+		}
+
+		public IEnumerable<Field> GetFields()
+		{
+			foreach (var field in fields.Values)
+				yield return field;
+		}
+
+		public Field this[string fieldName]
+		{
+			get => fields.ContainsKey(fieldName) ? fields[fieldName] : null;
+		}
+
+	}
+	public class Field
+	{
+
+		private readonly object instance;
+		private FieldInfo field;
+		public FieldInfo FieldInfo { get => field; }
+
+
+		public Field(FieldInfo field, object instance)
+		{
+			this.field = field;
+			this.instance = instance;
+		}
+
+		public object Value
+		{
+			get => field.GetValue(instance);
+			set => field.SetValue(instance, value);
+		}
+	}
+
+	public static class TypeExtension
+	{
+		private static Dictionary<Type, MethodInfo> conversion = new Dictionary<Type, MethodInfo>();
+
+
+		public static object ReadValue(this BinaryReader reader, Type type)
+		{
+			try
+			{
+				if (!conversion.ContainsKey(type))
+					conversion[type] = GetConversionMethod(type);
+				return conversion[type].Invoke(reader, new object[0]);
+			}
+			catch
+			{
+				throw new InvalidDataException();
+			}
+		}
+
+		private static MethodInfo GetConversionMethod(Type type)
+		{
+			foreach (var method in typeof(BinaryReader).GetMethods())
+				if (method.ReturnType == type && method.GetParameters().Length == 0 && method.Name.StartsWith("Read"))
+					return method;
+			return null;
+		}
 	}
 }
