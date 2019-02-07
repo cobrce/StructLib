@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
-namespace StructLib
+namespace StructLib.Internal
 {
 	interface IPackedType
 	{
@@ -25,7 +25,7 @@ namespace StructLib
 
 		void UnpackToField(object instance, FieldInfo field, BinaryReader reader);
 
-		byte[] Pack(object value);
+		DataCollection Pack(object value);
 
 		int FieldLength(Field field);
 	}
@@ -94,28 +94,24 @@ namespace StructLib
 			FieldFinalType = IsArray ? typeof(T[]) : typeof(T);
 		}
 
-		public byte[] Pack(object value)
+		public DataCollection Pack(object value)
 		{
+			DataCollection collection = new DataCollection();
 			if (value is T || (value.GetType().IsArray && value.GetType().GetElementType() == typeof(T)))
 			{
 				if (value.GetType().IsArray)
 				{
-					using (var ms = new MemoryStream())
+					foreach (var v in (Array)value)
 					{
-						foreach (var v in (Array)value)
-						{
-							byte[] chunk = MarshalReadBytes(v, Marshal.SizeOf(typeof(T)));
-							ms.Write(chunk, 0, chunk.Length);
-						}
-						return ms.ToArray();
+						collection.Add(MarshalReadBytes(v, Marshal.SizeOf(typeof(T))));
 					}
 				}
 				else
 				{
-					return MarshalReadBytes(value, Marshal.SizeOf(typeof(T)));
+					collection.Add(MarshalReadBytes(value, Marshal.SizeOf(typeof(T))));
 				}
 			}
-			return null;
+			return collection;
 		}
 
 		private static byte[] MarshalReadBytes(object value, int len)

@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using System.Reflection;
 
-namespace StructLib
+namespace StructLib.Internal
 {
 	public class Field
 	{
@@ -18,7 +18,7 @@ namespace StructLib
 			this.packedType = packedType;
 		}
 
-		public byte[] Pack()
+		public DataCollection Pack()
 		{
 			return packedType.Pack(Value);
 		}

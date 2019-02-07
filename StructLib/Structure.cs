@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using StructLib.Internal;
 
 namespace StructLib
 {
@@ -115,17 +116,19 @@ namespace StructLib
 
 		public byte[] Pack()
 		{
-			using (var ms = new MemoryStream())
+			DataCollection collection = new DataCollection();
+			foreach (var field in fields.Values)
 			{
-				foreach (var field in fields.Values)
+				try
 				{
-					byte[] chunk = field.Pack();
-					if (chunk == null)
-						throw new Exception($"Can't pack data for {field.FieldInfo.Name} ");
-					ms.Write(chunk, 0, chunk.Length);
+					collection.Append(field.Pack());
 				}
-				return ms.ToArray();
+				catch
+				{
+					throw new Exception($"Can't pack data for {field.FieldInfo.Name} ");
+				}
 			}
+			return collection.ToArray();
 		}
 
 		public IEnumerable<Field> GetFields()

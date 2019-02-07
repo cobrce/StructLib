@@ -45,9 +45,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Field.cs" />
-    <Compile Include="FieldCreationInfo.cs" />
-    <Compile Include="PackedType.cs" />
+    <Compile Include="Internal\DataCollection.cs" />
+    <Compile Include="Internal\Field.cs" />
+    <Compile Include="Internal\FieldCreationInfo.cs" />
+    <Compile Include="Internal\PackedType.cs" />
     <Compile Include="Structure.cs" />
     <Compile Include="Generator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
