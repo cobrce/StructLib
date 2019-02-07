@@ -1,7 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -11,20 +10,26 @@ namespace StructLib
 {
 	public class Generator
 	{
+		readonly List<FieldCreationInfo> fieldInfos;
+
+		public Dictionary<string, FieldCreationInfo> FieldInfos => fieldInfos.ToDictionary(f => f.FieldName);
+
+
 		readonly Type type;
 		readonly string format;
 
-		public Generator(string format, Type type)
+		private Generator(string format, List<FieldCreationInfo> fieldInfos, Type type)
 		{
+			this.fieldInfos = fieldInfos;
 			this.type = type;
 			this.format = format;
 		}
 
 		public Structure CreateInstance(byte[] data = null)
 		{
+			var instance = new Structure(type, fieldInfos, Activator.CreateInstance(type));
 
-			var instance = new Structure(type, Activator.CreateInstance(type));
-			if (data!=null)
+			if (data != null)
 			{
 				instance.Unpack(data);
 			}
@@ -52,24 +57,6 @@ namespace StructLib
 
 		static readonly Dictionary<string, Generator> generators = new Dictionary<string, Generator>();
 
-		static readonly Dictionary<char, Type> types = new Dictionary<char, Type>()
-		{
-			['i'] = typeof(int),
-			['I'] = typeof(uint),
-			['l'] = typeof(int),
-			['L'] = typeof(uint),
-			['h'] = typeof(short),
-			['H'] = typeof(ushort),
-			['b'] = typeof(byte),
-			['c'] = typeof(char),
-			['?'] = typeof(bool),
-			['q'] = typeof(Int64),
-			['Q'] = typeof(UInt64),
-			['f'] = typeof(float),
-			['d'] = typeof(double),
-			['s'] = typeof(string)
-		};
-
 		private static AssemblyBuilder _builder;
 		private static AssemblyBuilder Builder { get => _builder ?? (_builder = GenerateBuilder()); }
 
@@ -94,15 +81,15 @@ namespace StructLib
 
 		public static Generator CreateGenerator(string formula)
 		{
-			var dictionary = new Dictionary<string, char>();
+			var dictionary = new Dictionary<string, string>();
 
 			for (int i = 0; i < formula.Length; i++)
-				dictionary[FieldName(i)] = formula[i];
+				dictionary[FieldName(i)] = formula[i].ToString();
 
 			return GenerateOrReturn(JsonConvert.SerializeObject(dictionary), dictionary);
 		}
 
-		private static Generator GenerateOrReturn(string jsonFormula, Dictionary<string, char> dictionary)
+		private static Generator GenerateOrReturn(string jsonFormula, Dictionary<string, string> dictionary)
 		{
 			if (generators.Keys.Contains(jsonFormula))
 				return generators[jsonFormula];
@@ -113,7 +100,7 @@ namespace StructLib
 		public static Generator CreateGeneratorJson(string jsonformula)
 		{
 			// deserialize then serialize to avoid recreating Generators for the same formulas that have a slightly diffent json
-			var dictionary = JsonConvert.DeserializeObject<Dictionary<string, char>>(jsonformula);
+			var dictionary = JsonConvert.DeserializeObject<Dictionary<string, string>>(jsonformula);
 			return GenerateOrReturn(JsonConvert.SerializeObject(dictionary), dictionary);
 		}
 
@@ -149,27 +136,24 @@ namespace StructLib
 			return generator.CreateInstance(values);
 		}
 
-		private static Generator CreateGeneratorInternal(string jsonFormula, Dictionary<string, char> fieldTypeDictionary)
+		private static Generator CreateGeneratorInternal(string jsonFormula, Dictionary<string, string> fieldTypeDictionary)
 		{
-			foreach (char c in fieldTypeDictionary.Values)
-				if (!types.ContainsKey(c))
-					throw new Exception($"Unknown format {c}");
-
 			var typeBuilder = Module.DefineType(jsonFormula,
 				TypeAttributes.Public |
-				TypeAttributes.ExplicitLayout |
+				//TypeAttributes.ExplicitLayout |
 				TypeAttributes.Sealed |
 				TypeAttributes.Serializable,
 				typeof(System.ValueType));
 
-			List<Tuple<string, Type, int>> extracted = ExtractTypes(fieldTypeDictionary);
+			var fieldInfos = ExtractTypes(fieldTypeDictionary);
 
-			foreach (var tuple in extracted)
+			foreach (var fieldInfo in fieldInfos)
 			{
-				var field = typeBuilder.DefineField(tuple.Item1, tuple.Item2, FieldAttributes.Public | FieldAttributes.HasFieldRVA);
-				field.SetOffset(tuple.Item3);
+				var field = typeBuilder.DefineField(fieldInfo.FieldName, fieldInfo.PackedType.FieldFinalType, FieldAttributes.Public | FieldAttributes.HasFieldRVA);
+				//field.SetOffset(fieldInfo.Offset);
+				fieldInfo.Field = field;
 			}
-			return generators[jsonFormula] = new Generator(jsonFormula, typeBuilder.CreateType());
+			return generators[jsonFormula] = new Generator(jsonFormula, fieldInfos, typeBuilder.CreateType());
 
 		}
 
@@ -178,16 +162,22 @@ namespace StructLib
 			return $"Field{counter}";
 		}
 
-		private static List<Tuple<string, Type, int>> ExtractTypes(Dictionary<string, char> fieldTypeDictionary)
+		private static List<FieldCreationInfo> ExtractTypes(Dictionary<string, string> fieldTypeDictionary)
 		{
-			List<Tuple<string, Type, int>> extracted = new List<Tuple<string, Type, int>>();
-
+			var extracted = new List<FieldCreationInfo>();
 			int offset = 0;
 			foreach (var fieldName in fieldTypeDictionary.Keys)
 			{
-				Type type = types[fieldTypeDictionary[fieldName]];
-				extracted.Add(new Tuple<string, Type, int>(fieldName, type, offset));
-				offset += Marshal.SizeOf(type);
+				IPackedType packedType = PackedType.ParseFormat(fieldTypeDictionary[fieldName]);
+				if (packedType != null)
+				{
+					extracted.Add(new FieldCreationInfo(fieldName, packedType, offset));
+					offset += Marshal.SizeOf(packedType.FieldBaseType);
+				}
+				else
+				{
+					throw new Exception($"Can't parse {fieldName}:{fieldTypeDictionary}");
+				}
 			}
 			return extracted;
 		}
