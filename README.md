@@ -23,15 +23,20 @@ A struct formula is a string composed of the following chars
 
 You notice that 'l' and 'L' are translated to **int** and **uint** resp., it's to keep the same [definitions as python][format-characters] because C# defines **long** and **ulong** as 8 bytes
 
-[format-characters]:https://docs.python.org/2/library/struct.html#format-characters
-
 ### Json
 you can combine the chars above with field names to into a json format as follow : 
 { "NameOfField0" : "TypeFormatOfField0",...,"NameOfField0N" :"TypeFormatOfFieldN"}
 
-### Initial values
+## How it works?
+* An instance of Generator class uses reflection to define a struct based on a given formula (the string described above)
+* Use that Generator to create an of Structure class, this one encapsulated an instance of the struct defined before
+* You can get/set values from/to fields by accessin to StructureInstance["FieldName"].Value
+* You can set pack/unpack binary values (byte[]) same as python's strcut
+
+## Initial values
 Variables can have initial values that are defined after creating Generator and before instantiating a Structure
-### Arrays (json only)
+
+## Arrays (json only)
 you can use arrays by adding "[" and "]" after the type format
 
 #### example
@@ -44,13 +49,7 @@ you can use arrays by adding "[" and "]" after the type format
 * With fixed size arrays, values are trunkated/padded to array size
 * When instanciating a Structure with UnpackJson, variables of variable array size are ignored
 
-### How it works?
-* An instance of Generator class uses reflection to define a struct based on a given formula (the string described above)
-* Use that Generator to create an of Structure class, this one encapsulated an instance of the struct defined before
-* You can get/set values from/to fields by accessin to StructureInstance["FieldName"].Value
-* You can set pack/unpack binary values (byte[]) same as python's strcut
-
-### Example
+## Example
 ```C#
 string jsonFormula = "{'A' : 'I'," +  // A is an uint
 				"'B' :'b'," + // B is a byte
@@ -81,8 +80,9 @@ foreach (byte b in inst2.Pack()) // inst2.E will stay empty because it has a var
     Console.Write($"{b:x02} "); // 01 00 00 00 02 43 00 01 02 03 00 00 00 00 00 00
 ```
 
-### Case of use
-In my case I've written this library to use it with program that communicates with arduino throught serial port
+## Case of use
+In my case I've written this library to use it with program that communicates with an [arduino library][fiknigh] through serial port
 The program offers and advanced serial reader/writer with the possiblity to pack/unpack sent/received data
 
-
+[format-characters]:https://docs.python.org/2/library/struct.html#format-characters
+[fiknigh]:https://github.com/cobrce/FiKnight
