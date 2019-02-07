@@ -29,12 +29,20 @@ You notice that 'l' and 'L' are translated to **int** and **uint** resp., it's t
 you can combine the chars above with field names to into a json format as follow : 
 { "NameOfField0" : "TypeFormatOfField0",...,"NameOfField0N" :"TypeFormatOfFieldN"}
 
+### Initial values
+Variables can have initial values that are defined after creating Generator and before instantiating a Structure
 ### Arrays (json only)
 you can use arrays by adding "[" and "]" after the type format
+
 #### example
 { "A" : "b[3]"} // A is byte[3] with fixed size, intialized with {0,0,0}
 
 { "B" : "b[]"} // B is byte[] with variable size, intialized empty
+
+### Arrays values
+* With variable size arrays, values are set as they are
+* With fixed size arrays, values are trunkated/padded to array size
+* When instanciating a Structure with UnpackJson, variables of variable array size are ignored
 
 ### How it works?
 * An instance of Generator class uses reflection to define a struct based on a given formula (the string described above)
