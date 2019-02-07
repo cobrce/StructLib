@@ -31,8 +31,9 @@ you can combine the chars above with field names to into a json format as follow
 
 ### Arrays (json only)
 you can use arrays by adding "[" and "]" after the type format
-##### example
+#### example
 { "A" : "b[3]"} // A is byte[3] with fixed size, intialized with {0,0,0}
+
 { "B" : "b[]"} // B is byte[] with variable size, intialized empty
 
 ### How it works?
