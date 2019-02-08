@@ -1,11 +1,11 @@
 ﻿using Newtonsoft.Json;
+using StructLib.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
-using StructLib.Internal;
 
 namespace StructLib
 {
@@ -100,9 +100,23 @@ namespace StructLib
 
 		public static Generator CreateGeneratorJson(string jsonformula)
 		{
-			// deserialize then serialize to avoid recreating Generators for the same formulas that have a slightly diffent json
-			var dictionary = JsonConvert.DeserializeObject<Dictionary<string, string>>(jsonformula);
-			return GenerateOrReturn(JsonConvert.SerializeObject(dictionary), dictionary);
+			try
+			{
+				// deserialize then serialize to avoid recreating Generators for the same formulas that have a slightly diffent json
+				var dictionary = JsonConvert.DeserializeObject<Dictionary<string, string>>(jsonformula);
+				return GenerateOrReturn(JsonConvert.SerializeObject(dictionary), dictionary);
+			}
+			catch (JsonReaderException ex)
+			{
+				var lines = jsonformula.Split(new char[] { '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+				int poistion = 0;
+				for (int i = 0; i < ex.LineNumber - 1; i++)
+					poistion += lines[i].Length;
+				poistion += ex.LinePosition-1;
+				throw new Exception($"Invalid character at Line {ex.LineNumber} Char {ex.LinePosition} \"{jsonformula.Substring(poistion)}\"");
+			}
+
 		}
 
 		public static Structure Unpack(string formula, object[] values)
@@ -139,14 +153,14 @@ namespace StructLib
 
 		private static Generator CreateGeneratorInternal(string jsonFormula, Dictionary<string, string> fieldTypeDictionary)
 		{
+			var fieldInfos = ExtractTypes(fieldTypeDictionary);
+
 			var typeBuilder = Module.DefineType(jsonFormula,
 				TypeAttributes.Public |
 				//TypeAttributes.ExplicitLayout |
 				TypeAttributes.Sealed |
 				TypeAttributes.Serializable,
 				typeof(System.ValueType));
-
-			var fieldInfos = ExtractTypes(fieldTypeDictionary);
 
 			foreach (var fieldInfo in fieldInfos)
 			{
@@ -177,7 +191,7 @@ namespace StructLib
 				}
 				else
 				{
-					throw new Exception($"Can't parse {fieldName}:{fieldTypeDictionary}");
+					throw new Exception($"Invalid type {fieldTypeDictionary[fieldName]}");
 				}
 			}
 			return extracted;
