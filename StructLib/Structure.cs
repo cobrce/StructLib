@@ -1,8 +1,8 @@
-﻿using System;
+﻿using StructLib.Internal;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using StructLib.Internal;
 
 namespace StructLib
 {
@@ -139,7 +139,7 @@ namespace StructLib
 
 		public Field this[string fieldName]
 		{
-			get => fields.ContainsKey(fieldName) ? fields[fieldName] : null;
+			get => fields.ContainsKey(fieldName ?? "") ? fields[fieldName] : null;
 		}
 	}
 }

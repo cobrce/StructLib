@@ -45,6 +45,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Comparison\Operator.cs" />
     <Compile Include="Internal\DataCollection.cs" />
     <Compile Include="Internal\Field.cs" />
     <Compile Include="Internal\FieldCreationInfo.cs" />
