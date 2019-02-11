@@ -34,10 +34,11 @@ namespace StructLib.Internal
 	{
 		internal static MethodInfo GetConversionMethod(Type type)
 		{
-			foreach (var method in typeof(BinaryReader).GetMethods())
-				if (method.ReturnType == type && method.GetParameters().Length == 0 && method.Name.StartsWith("Read"))
-					return method;
-			return null;
+			return typeof(BinaryReader).GetMethod($"Read{type.Name}");
+			//foreach (var method in typeof(BinaryReader).GetMethods())
+			//	if (method.ReturnType == type && method.GetParameters().Length == 0 && method.Name.Length > 4 && method.Name.StartsWith("Read"))
+			//		return method;
+			//return null;
 		}
 
 		internal static readonly Dictionary<Type, MethodInfo> conversion = new Dictionary<Type, MethodInfo>();

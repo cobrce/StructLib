@@ -94,9 +94,9 @@ namespace StructLib.Comparison
 				return CompareResult.Equal;
 
 			if (operand1 > operand2)
-				return CompareResult.Different | CompareResult.Bigger;
+				return CompareResult.Bigger;
 
-			return CompareResult.Different | CompareResult.Smaller;
+			return CompareResult.Smaller;
 		}
 
 		protected CompareResult CompareExDouble(double operand1, double operand2, double fuzzyRatio)
@@ -112,9 +112,9 @@ namespace StructLib.Comparison
 				return CompareResult.Equal;
 
 			if (operand1 > operand2)
-				return CompareResult.Different | CompareResult.Bigger;
+				return CompareResult.Bigger;
 
-			return CompareResult.Different | CompareResult.Smaller;
+			return CompareResult.Smaller;
 		}
 	}
 
